@@ -1,0 +1,7 @@
+# MK Port — config
+system = "ps2"  # ps2 | xbox
+image = "D:\proyectos luis\Ports\slus-210.87.-mortal-kombat-shaolin-monks\SLUS_210.87.Mortal Kombat Shaolin Monks.iso"
+emulator = "D:\proyectos luis\Ports\pcsx2-v2.8.2-windows-x64-Qt\pcsx2-qt.exe"
+name = "Player"
+port = "34513"
+public_ip = ""  # tu IP pública o ZeroTier para invitar
