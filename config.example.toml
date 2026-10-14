@@ -1,0 +1,8 @@
+# MK Port — config de ejemplo (cópialo como config.toml y ajusta tus rutas,
+# o deja que el port auto-detecte tu ISO y tu emulador junto a esta carpeta)
+system = "ps2"
+image = ""
+emulator = ""
+name = "Player"
+port = "34513"
+public_ip = ""
