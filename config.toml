@@ -5,3 +5,4 @@ emulator = "D:\proyectos luis\Ports\pcsx2-v2.8.2-windows-x64-Qt\pcsx2-qt.exe"
 name = "Loues"
 port = "34513"
 public_ip = ""  # tu IP pública o ZeroTier para invitar
+zt_net = ""  # Network ID ZeroTier (16 hex)

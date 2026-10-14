@@ -17,8 +17,9 @@ else:
     sys.path.insert(0, str(ROOT))
 import validator
 import theme
+import zerotier
 from online import LobbyCore
-from invite import make_link, parse_link, copy_clipboard
+from invite import make_link, parse_link, copy_clipboard, read_clipboard
 
 CONFIG = ROOT / "config.toml"
 
@@ -91,7 +92,7 @@ def autodetect(system: str = "ps2") -> dict:
 
 def load_config() -> dict:
     cfg = {"image": "", "emulator": "", "name": "Player", "port": "34513",
-           "public_ip": "", "system": "ps2"}
+           "public_ip": "", "system": "ps2", "zt_net": ""}
     try:
         for line in CONFIG.read_text(encoding="utf-8").splitlines():
             s = line.strip()
@@ -119,7 +120,8 @@ def save_config(cfg: dict):
         f'emulator = "{cfg["emulator"]}"\n'
         f'name = "{cfg["name"]}"\n'
         f'port = "{cfg["port"]}"\n'
-        f'public_ip = "{cfg["public_ip"]}"  # tu IP pública o ZeroTier para invitar\n',
+        f'public_ip = "{cfg["public_ip"]}"  # tu IP pública o ZeroTier para invitar\n'
+        f'zt_net = "{cfg.get("zt_net", "")}"  # Network ID ZeroTier (16 hex)\n',
         encoding="utf-8")
 
 
@@ -245,7 +247,7 @@ class App(tk.Tk):
     def _persist(self):
         self.cfg.update(system=self.sys_var.get(), image=self.iso_var.get(), emulator=self.emu_var.get(),
                         name=self.name_var.get() or "Player", port=self.port_var.get() or "34513",
-                        public_ip=self.cfg.get("public_ip", ""))
+                        public_ip=self.cfg.get("public_ip", ""), zt_net=self.cfg.get("zt_net", ""))
         save_config(self.cfg)
 
     def _validate(self, silent=False):
@@ -477,7 +479,52 @@ class App(tk.Tk):
                                                    "IP local (¿ZeroTier? la 10.x)")).pack(side="left", padx=2)
         theme.button(m, text="¿Cómo conectarnos a distancia?", kind="ghost",
                      command=self._howto_online).pack(pady=2)
+        theme.label(m, text="Red ZeroTier (Network ID, 16 letras/números):").pack()
+        zt_var = tk.StringVar(value=self.cfg.get("zt_net", ""))
+        ztrow = theme.frame(m)
+        ztrow.pack(fill="x", padx=20)
+        theme.entry(ztrow, textvariable=zt_var).pack(side="left", fill="x", expand=True)
+        zt_btn = theme.button(ztrow, text="Conectar ZeroTier", kind="jade")
+        zt_btn.pack(side="left", padx=(6, 0))
         port = self.port_var.get() or "34513"
+
+        def connect_zt():
+            import threading
+            if not zerotier.available():
+                messagebox.showwarning("MK Port", "ZeroTier no está instalado.\nDescárgalo en zerotier.com/download, instálalo y vuelve aquí.")
+                return
+            net = zt_var.get().strip()
+            if not net:
+                messagebox.showwarning("MK Port", "Pega primero el Network ID (te lo da quien creó la red).")
+                return
+            zt_btn.config(state="disabled", text="Conectando…")
+
+            def job():
+                try:
+                    if not zerotier.online():
+                        raise RuntimeError("El servicio ZeroTier no responde (ábrelo una vez).")
+                    zerotier.join(net)
+                    ip = zerotier.wait_ip(net)
+                    done({"ok": True, "ip": ip})
+                except Exception as e:
+                    done({"ok": False, "err": str(e)})
+
+            def done(res):
+                def apply():
+                    zt_btn.config(state="normal", text="Conectar ZeroTier")
+                    if res["ok"]:
+                        self.cfg["zt_net"] = net
+                        self.cfg["public_ip"] = res["ip"]
+                        self._persist()
+                        ip_var.set(res["ip"])
+                        messagebox.showinfo("MK Port", f"ZeroTier listo. Tu IP: {res['ip']}\nYa quedó puesta: crea la sala y pasa el link.")
+                    else:
+                        messagebox.showerror("MK Port", f"No se pudo: {res['err']}")
+                m.after(0, apply)
+
+            threading.Thread(target=job, daemon=True).start()
+
+        zt_btn.config(command=connect_zt)
 
         def host():
             self.cfg["public_ip"] = ip_var.get()
@@ -489,8 +536,10 @@ class App(tk.Tk):
                 messagebox.showerror("MK Port", f"No pude abrir el puerto {port}: {e}")
                 return
             link = make_link(ip_var.get() or "<TU-IP>", int(port), core.name)
+            copied = copy_clipboard(link)
             m.destroy()
             self._open_lobby(core, True, link)
+            messagebox.showinfo("MK Port", "Sala creada." + (" Link copiado: pásalo a tu amigo." if copied else f"\nTu link:\n{link}"))
 
         def join():
             from lobby_ui import LobbyWindow
@@ -501,6 +550,12 @@ class App(tk.Tk):
             link_win.resizable(False, False)
             theme.label(link_win, text="Pega el link mkport:// de tu amigo:").pack(pady=6)
             lv = tk.StringVar()
+            try:
+                clip = read_clipboard()
+                if clip.strip().startswith("mkport://"):
+                    lv.set(clip.strip())
+            except Exception:
+                pass
             theme.entry(link_win, textvariable=lv).pack(fill="x", padx=12)
 
             def go():

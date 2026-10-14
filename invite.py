@@ -51,3 +51,26 @@ def copy_clipboard(text: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def read_clipboard() -> str:
+    import subprocess
+    import sys
+    if sys.platform == "win32":  # powershell no necesita ventana
+        try:
+            p = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+                               capture_output=True, timeout=5)
+            s = p.stdout.decode("utf-8", "ignore").strip()
+            if s:
+                return s
+        except Exception:
+            pass
+    try:
+        import tkinter as tk
+        r = tk.Tk()
+        r.withdraw()
+        s = r.clipboard_get()
+        r.destroy()
+        return s
+    except Exception:
+        return ""
