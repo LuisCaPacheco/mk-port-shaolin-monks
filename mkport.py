@@ -113,6 +113,11 @@ class App(tk.Tk):
         self.geometry("560x700")
         self.resizable(False, False)
         theme.root(self)
+        try:
+            self._icon = tk.PhotoImage(file=str(theme.BASE / "assets" / "icon.png"))
+            self.iconphoto(True, self._icon)
+        except Exception:
+            pass
         self.valid_ok = False
         self.lobby_win = None
 
