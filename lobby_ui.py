@@ -1,12 +1,13 @@
 """lobby_ui.py — ventanita online aparte (tkinter) sobre LobbyCore.
 
-Muestra: estado de conexión, jugadores con ✓/·, misión, botones LISTO /
-EMPEZAR (host) / SALTAR INTRO, chat y ping. Sin lógica de red aquí.
+Muestra: estado de conexión, jugadores con ✓/·, misión, botones listo /
+empezar (host) / saltar intro, chat y ping. Sin lógica de red aquí.
 """
 from __future__ import annotations
 import queue
 import tkinter as tk
-from tkinter import messagebox
+
+import theme
 
 
 class LobbyWindow(tk.Toplevel):
@@ -16,47 +17,56 @@ class LobbyWindow(tk.Toplevel):
         self.is_host = is_host
         self.on_close = on_close
         self.title("MK Port — Sala coop")
-        self.geometry("360x560")
+        self.geometry("380x600")
         self.resizable(False, False)
+        theme.root(self)
         self.protocol("WM_DELETE_WINDOW", self._close)
 
-        self.status = tk.Label(self, text="Conectando...", font=("Segoe UI", 10, "bold"))
-        self.status.pack(pady=4)
-        self.ping = tk.Label(self, text="ping: --", fg="gray")
+        theme.section(self, "Sala coop").pack(anchor="w", padx=12, pady=(8, 0))
+        self.status = theme.label(self, text="Conectando…", font=("Segoe UI", 10, "bold"),
+                                  fg=theme.GOLD)
+        self.status.pack(pady=2)
+        self.ping = theme.label(self, text="ping: --", fg=theme.MUTE, font=theme.SMALL)
         self.ping.pack()
 
-        tk.Label(self, text="Jugadores").pack()
-        self.plist = tk.Listbox(self, height=4)
-        self.plist.pack(fill="x", padx=10)
+        theme.label(self, text="Guerreros").pack(anchor="w", padx=12)
+        self.plist = theme.listbox(self, height=4)
+        self.plist.pack(fill="x", padx=12)
 
-        tk.Label(self, text="Misión").pack()
+        theme.label(self, text="Misión").pack(anchor="w", padx=12)
         self.mission_var = tk.StringVar()
         if is_host:
-            self.mission = tk.Entry(self, textvariable=self.mission_var)
-            self.mission.pack(fill="x", padx=10)
-            tk.Button(self, text="Fijar misión", command=self._set_mission).pack(pady=2)
+            theme.entry(self, textvariable=self.mission_var).pack(fill="x", padx=12)
+            theme.button(self, text="Fijar misión", kind="bronze",
+                         command=self._set_mission).pack(pady=2)
         else:
-            tk.Label(self, textvariable=self.mission_var, fg="blue").pack()
+            theme.label(self, textvariable=self.mission_var, fg=theme.GOLD).pack()
 
-        btns = tk.Frame(self)
+        theme.gold_rule(self)
+        btns = theme.frame(self)
         btns.pack(pady=4)
-        self.ready_var = tk.StringVar(value="Estoy LISTO")
-        tk.Button(btns, textvariable=self.ready_var, width=14, command=self._toggle_ready).pack(side="left", padx=3)
+        self.ready_var = tk.StringVar(value="Estoy listo")
+        theme.button(btns, textvariable=self.ready_var, kind="jade",
+                     command=self._toggle_ready, width=14).pack(side="left", padx=3)
         if is_host:
-            tk.Button(btns, text="EMPEZAR (3-2-1)", width=16, command=self.core.host_start).pack(side="left", padx=3)
-        tk.Button(btns, text="SALTAR INTRO", width=14, command=self.core.send_skip).pack(side="left", padx=3)
+            theme.button(btns, text="Empezar (3-2-1)", kind="blood",
+                         command=self.core.host_start, width=15).pack(side="left", padx=3)
+        theme.button(btns, text="Saltar intro", kind="bronze",
+                     command=self.core.send_skip, width=12).pack(side="left", padx=3)
 
-        self.flash = tk.Label(self, text="", font=("Segoe UI", 14, "bold"), fg="red")
-        self.flash.pack(pady=4)
+        self.flash = theme.label(self, text="", font=("Palatino Linotype", 15, "bold"),
+                                 fg=theme.BLOOD)
+        self.flash.pack(pady=2)
 
-        tk.Label(self, text="Sala / chat").pack()
-        self.log = tk.Listbox(self, height=10)
-        self.log.pack(fill="both", expand=True, padx=10, pady=2)
-        row = tk.Frame(self)
-        row.pack(fill="x", padx=10, pady=4)
+        theme.label(self, text="Sala / chat").pack(anchor="w", padx=12)
+        self.log = theme.listbox(self, height=9)
+        self.log.pack(fill="both", expand=True, padx=12, pady=2)
+        row = theme.frame(self)
+        row.pack(fill="x", padx=12, pady=4)
         self.chat_var = tk.StringVar()
-        tk.Entry(row, textvariable=self.chat_var).pack(side="left", fill="x", expand=True)
-        tk.Button(row, text="Enviar", command=self._send_chat).pack(side="left")
+        theme.entry(row, textvariable=self.chat_var).pack(side="left", fill="x", expand=True)
+        theme.button(row, text="Enviar", kind="bronze",
+                     command=self._send_chat).pack(side="left", padx=(6, 0))
         self.bind("<Return>", lambda e: self._send_chat())
 
         self._ready = False
@@ -66,7 +76,7 @@ class LobbyWindow(tk.Toplevel):
     def _toggle_ready(self):
         self._ready = not self._ready
         self.core.set_ready(self._ready)
-        self.ready_var.set("Ya NO estoy listo" if self._ready else "Estoy LISTO")
+        self.ready_var.set("Ya no estoy listo" if self._ready else "Estoy listo")
 
     def _set_mission(self):
         self.core.host_set_mission(self.mission_var.get())
@@ -104,6 +114,7 @@ class LobbyWindow(tk.Toplevel):
             self.status.config(text=ev[1][:60])
         elif kind == "conn":
             self.status.config(text="En sala ✓" if ev[1] else "Desconectado")
+            self.status.config(fg=theme.JADE if ev[1] else theme.BAD)
         elif kind == "players":
             self.plist.delete(0, "end")
             for p in ev[1]:
@@ -129,15 +140,15 @@ class LobbyWindow(tk.Toplevel):
         if not self.winfo_exists():
             return
         if n <= 0:
-            self.flash.config(text="¡A JUGAR! Inicia la misión YA")
-            self._line("¡A JUGAR! Entren a la misión a la vez.")
+            self.flash.config(text="¡A jugar! Entren a la vez", fg=theme.GOLD)
+            self._line("¡A jugar! Entren a la misión a la vez.")
             self.after(3000, lambda: self.flash.config(text=""))
         else:
-            self.flash.config(text=f"Empieza en {n}...")
+            self.flash.config(text=f"Empieza en {n}…", fg=theme.GOLD)
             self.after(1000, lambda: self._countdown(n - 1))
 
     def _skip_flash(self, who):
-        self._line(f"{who} pide SALTAR INTRO ¡ahora!")
-        self.flash.config(text="¡SALTAR INTRO AHORA!")
+        self._line(f"{who} pide saltar la intro ¡ahora!")
+        self.flash.config(text="¡Saltar intro ahora!", fg=theme.BLOOD)
         self.bell()
         self.after(4000, lambda: self.flash.config(text="") if self.winfo_exists() else None)

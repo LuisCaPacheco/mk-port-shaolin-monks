@@ -1,0 +1,2 @@
+Pon aquí tu logo como logo.png (se muestra en la cabecera del port).
+Si no hay logo, el port dibuja su sello-medallón propio.

@@ -16,6 +16,7 @@ if getattr(sys, "frozen", False):  # corriendo como MKPort.exe compilado
 else:
     sys.path.insert(0, str(ROOT))
 import validator
+import theme
 from online import LobbyCore
 from invite import make_link, parse_link, copy_clipboard
 
@@ -109,56 +110,70 @@ class App(tk.Tk):
                 self.cfg["emulator"] = auto["emulator"]
             save_config(self.cfg)
         self.title("MK Port — Shaolin Monks")
-        self.geometry("520x470")
+        self.geometry("560x700")
         self.resizable(False, False)
+        theme.root(self)
         self.valid_ok = False
         self.lobby_win = None
 
-        rs = tk.Frame(self)
-        rs.pack(fill="x", padx=10, pady=(8, 0))
-        tk.Label(rs, text="Sistema:", font=("Segoe UI", 10, "bold")).pack(side="left")
+        if theme.banner(self) is None:
+            head = theme.frame(self)
+            head.pack(fill="x", padx=12, pady=(10, 0))
+            theme.emblem(head, size=96).pack(side="left", padx=(0, 12))
+            tt = theme.frame(head)
+            tt.pack(side="left", fill="y")
+            theme.label(tt, text="MK Port", font=theme.DISPLAY, fg=theme.GOLD).pack(anchor="w")
+            theme.label(tt, text="Mortal Kombat: Shaolin Monks", fg=theme.BONE).pack(anchor="w")
+        else:
+            theme.label(self, text="MK Port · Shaolin Monks", font=theme.DISPLAY_SM,
+                        fg=theme.GOLD).pack(pady=(4, 0))
+        rs = theme.frame(self)
+        rs.pack(fill="x", padx=12, pady=(6, 0))
         self.sys_var = tk.StringVar(value=self.cfg.get("system", "ps2"))
-        for val, label in (("ps2", "PS2 + PCSX2"), ("xbox", "Xbox + Xemu")):
-            tk.Radiobutton(rs, text=label, variable=self.sys_var, value=val,
-                           command=self._switch_system).pack(side="left", padx=6)
+        for val, lab in (("ps2", "PS2 + PCSX2"), ("xbox", "Xbox + Xemu")):
+            theme.radio(rs, lab, self.sys_var, val, command=self._switch_system).pack(side="left", padx=(0, 10))
+        theme.gold_rule(self)
 
-        tk.Label(self, text="1) Tu ISO", font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=10, pady=(8, 0))
-        r1 = tk.Frame(self)
-        r1.pack(fill="x", padx=10)
+        theme.section(self, "Tu disco").pack(anchor="w", padx=12)
+        r1 = theme.frame(self)
+        r1.pack(fill="x", padx=12)
         self.iso_var = tk.StringVar(value=self.cfg["image"])
-        tk.Entry(r1, textvariable=self.iso_var).pack(side="left", fill="x", expand=True)
-        tk.Button(r1, text="Buscar ISO...", command=self._pick_iso).pack(side="left", padx=4)
+        theme.entry(r1, textvariable=self.iso_var).pack(side="left", fill="x", expand=True)
+        theme.button(r1, text="Buscar ISO…", kind="bronze", command=self._pick_iso).pack(side="left", padx=(6, 0))
 
-        tk.Label(self, text="Validación (debe decir Shaolin Monks)", font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=10)
-        self.checks = tk.Listbox(self, height=6)
-        self.checks.pack(fill="x", padx=10)
-        self.result = tk.Label(self, text="Sin validar", fg="gray")
+        theme.section(self, "Validación").pack(anchor="w", padx=12, pady=(6, 0))
+        self.checks = theme.listbox(self, height=6)
+        self.checks.pack(fill="x", padx=12)
+        self.result = theme.label(self, text="Sin validar", fg=theme.MUTE)
         self.result.pack()
 
-        self.emu_label = tk.Label(self, text="2) Emulador", font=("Segoe UI", 10, "bold"))
-        self.emu_label.pack(anchor="w", padx=10)
-        r2 = tk.Frame(self)
-        r2.pack(fill="x", padx=10)
+        self.emu_label = theme.label(self, text="Tu emulador", font=theme.DISPLAY_SM, fg=theme.GOLD)
+        self.emu_label.pack(anchor="w", padx=12, pady=(6, 0))
+        r2 = theme.frame(self)
+        r2.pack(fill="x", padx=12)
         self.emu_var = tk.StringVar(value=self.cfg["emulator"])
-        tk.Entry(r2, textvariable=self.emu_var).pack(side="left", fill="x", expand=True)
-        self.emu_btn = tk.Button(r2, text="Buscar exe...", command=self._pick_emu)
-        self.emu_btn.pack(side="left", padx=4)
+        theme.entry(r2, textvariable=self.emu_var).pack(side="left", fill="x", expand=True)
+        self.emu_btn = theme.button(r2, text="Buscar…", kind="bronze", command=self._pick_emu)
+        self.emu_btn.pack(side="left", padx=(6, 0))
 
-        r3 = tk.Frame(self)
-        r3.pack(fill="x", padx=10)
-        tk.Label(r3, text="Tu nombre:").pack(side="left")
+        r3 = theme.frame(self)
+        r3.pack(fill="x", padx=12, pady=(4, 0))
+        theme.label(r3, text="Tu nombre:").pack(side="left")
         self.name_var = tk.StringVar(value=self.cfg["name"])
-        tk.Entry(r3, textvariable=self.name_var, width=16).pack(side="left", padx=4)
-        tk.Label(r3, text="Puerto:").pack(side="left")
+        theme.entry(r3, textvariable=self.name_var, width=16).pack(side="left", padx=4)
+        theme.label(r3, text="Puerto:").pack(side="left")
         self.port_var = tk.StringVar(value=self.cfg["port"])
-        tk.Entry(r3, textvariable=self.port_var, width=8).pack(side="left")
+        theme.entry(r3, textvariable=self.port_var, width=8).pack(side="left")
 
-        r4 = tk.Frame(self)
-        r4.pack(pady=8)
-        tk.Button(r4, text="VALIDAR ISO", command=self._validate).pack(side="left", padx=4)
-        self.play_btn = tk.Button(r4, text="JUGAR", command=self._play, bg="#cfe8cf")
+        theme.gold_rule(self)
+        r4 = theme.frame(self)
+        r4.pack(pady=6)
+        theme.button(r4, text="Validar ISO", kind="ghost", command=self._validate).pack(side="left", padx=4)
+        self.play_btn = theme.button(r4, text="Jugar", kind="blood", command=self._play, width=16)
         self.play_btn.pack(side="left", padx=4)
-        tk.Button(r4, text="SALA ONLINE", command=self._lobby_menu, bg="#cfe0f5").pack(side="left", padx=4)
+        theme.button(r4, text="Sala online", kind="jade", command=self._lobby_menu, width=16).pack(side="left", padx=4)
+        theme.label(self, text="Port no oficial · usa tu disco original", font=theme.SMALL,
+                    fg=theme.MUTE).pack(pady=(0, 8))
 
         self._refresh_system_ui()
         if self.iso_var.get():
@@ -176,9 +191,9 @@ class App(tk.Tk):
 
     def _refresh_system_ui(self):
         ps2 = self.sys_var.get() == "ps2"
-        self.emu_label.config(text="2) PCSX2" if ps2 else "2) Xemu")
-        self.emu_btn.config(text="Buscar pcsx2.exe..." if ps2 else "Buscar xemu.exe...")
-        self.play_btn.config(text="JUGAR EN PCSX2" if ps2 else "JUGAR EN XEMU")
+        self.emu_label.config(text="Tu emulador (PCSX2)" if ps2 else "Tu emulador (Xemu)")
+        self.emu_btn.config(text="Buscar PCSX2…" if ps2 else "Buscar Xemu…")
+        self.play_btn.config(text="Jugar en PCSX2" if ps2 else "Jugar en Xemu")
 
     # ---------- juego ----------
     def _pick_iso(self):
@@ -212,7 +227,7 @@ class App(tk.Tk):
         ok, checks, msg = validator.validate(path, self.sys_var.get())
         for name, passed, detail in checks:
             self.checks.insert("end", f"[{'OK' if passed else 'XX'}] {name} {detail}")
-        self.result.config(text=msg, fg="green" if ok else "red")
+        self.result.config(text=msg, fg=theme.GOOD if ok else theme.BAD)
         self.valid_ok = ok
         if ok:
             self._persist()
@@ -377,14 +392,16 @@ class App(tk.Tk):
             self.lobby_win.focus()
             return
         m = tk.Toplevel(self)
+        theme.root(m)
         m.title("Sala online")
-        m.geometry("360x300")
+        m.geometry("380x320")
         m.resizable(False, False)
-        tk.Label(m, text="Cada jugador abre SU Xemu con SU xiso.\nLa sala sincroniza listos, inicio y skip de intro.",
-                 fg="gray").pack(pady=6)
-        tk.Label(m, text="Tu IP pública o ZeroTier (para el link):").pack()
+        theme.section(m, "Sala online").pack(anchor="w", padx=12, pady=(8, 0))
+        theme.label(m, text="Cada uno abre su emulador con su ISO.\nLa sala sincroniza listos, inicio y skip de intro.",
+                    fg=theme.MUTE).pack(pady=4)
+        theme.label(m, text="Tu IP pública o ZeroTier (para el link):").pack()
         ip_var = tk.StringVar(value=self.cfg.get("public_ip", ""))
-        tk.Entry(m, textvariable=ip_var).pack(fill="x", padx=20)
+        theme.entry(m, textvariable=ip_var).pack(fill="x", padx=20)
         port = self.port_var.get() or "34513"
 
         def host():
@@ -403,11 +420,13 @@ class App(tk.Tk):
         def join():
             from lobby_ui import LobbyWindow
             link_win = tk.Toplevel(self)
+            theme.root(link_win)
             link_win.title("Unirse con link")
-            link_win.geometry("340x140")
-            tk.Label(link_win, text="Pega el link mkport:// de tu amigo:").pack(pady=4)
+            link_win.geometry("360x150")
+            link_win.resizable(False, False)
+            theme.label(link_win, text="Pega el link mkport:// de tu amigo:").pack(pady=6)
             lv = tk.StringVar()
-            tk.Entry(link_win, textvariable=lv).pack(fill="x", padx=12)
+            theme.entry(link_win, textvariable=lv).pack(fill="x", padx=12)
 
             def go():
                 try:
@@ -421,10 +440,10 @@ class App(tk.Tk):
                 m.destroy()
                 self._open_lobby(core, False)
 
-            tk.Button(link_win, text="ENTRAR", command=go).pack(pady=8)
+            theme.button(link_win, text="Entrar", kind="jade", command=go, width=16).pack(pady=8)
 
-        tk.Button(m, text="CREAR SALA (soy host)", command=host, bg="#cfe8cf").pack(fill="x", padx=40, pady=4)
-        tk.Button(m, text="UNIRSE CON LINK", command=join, bg="#cfe0f5").pack(fill="x", padx=40, pady=4)
+        theme.button(m, text="Crear sala (soy host)", kind="blood", command=host).pack(fill="x", padx=40, pady=4)
+        theme.button(m, text="Unirse con link", kind="jade", command=join).pack(fill="x", padx=40, pady=4)
 
     def _open_lobby(self, core, is_host, link=""):
         from lobby_ui import LobbyWindow
@@ -435,14 +454,15 @@ class App(tk.Tk):
         self.lobby_win = LobbyWindow(self, core, is_host, on_close=closed)
         if link:
             top = tk.Toplevel(self.lobby_win)
+            theme.root(top)
             top.title("Link de invitación")
-            tk.Label(top, text="Pásale esto a tu amigo:").pack(padx=12, pady=4)
-            tk.Entry(top, width=50).pack(padx=12)
-            for w in top.children.values():
-                if isinstance(w, tk.Entry):
-                    w.insert(0, link)
-            tk.Button(top, text="Copiar",
-                      command=lambda: copy_clipboard(link)).pack(pady=6)
+            top.geometry("420x140")
+            theme.label(top, text="Pásale esto a tu amigo:").pack(padx=12, pady=4)
+            e = theme.entry(top, width=50)
+            e.pack(padx=12)
+            e.insert(0, link)
+            theme.button(top, text="Copiar", kind="bronze",
+                         command=lambda: copy_clipboard(link)).pack(pady=6)
 
 
 if __name__ == "__main__":
