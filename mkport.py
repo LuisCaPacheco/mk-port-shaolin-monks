@@ -23,6 +23,32 @@ from invite import make_link, parse_link, copy_clipboard
 CONFIG = ROOT / "config.toml"
 
 
+def local_ips() -> list[str]:
+    """IPs locales de este PC (para encontrar la de ZeroTier, suele ser 10.x)."""
+    out = []
+    try:
+        import socket
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            ip = info[4][0]
+            if ":" not in ip and not ip.startswith("127.") and ip not in out:
+                out.append(ip)
+    except Exception:
+        pass
+    return out
+
+
+def public_ip(timeout_s: int = 6) -> str:
+    """Tu IP vista desde internet (para invitar sin ZeroTier). Vacío si falla."""
+    try:
+        import urllib.request
+        req = urllib.request.Request("https://api.ipify.org", headers={"User-Agent": "MKPort"})
+        with urllib.request.urlopen(req, timeout=timeout_s) as r:
+            ip = r.read(60).decode("ascii", "ignore").strip()
+        return ip if ip.count(".") == 3 else ""
+    except Exception:
+        return ""
+
+
 def autodetect(system: str = "ps2") -> dict:
     """Busca emulador e ISO de Shaolin sin configurar nada (portable)."""
     found = {"image": "", "emulator": ""}
@@ -392,6 +418,41 @@ class App(tk.Tk):
             messagebox.showwarning("MK Port", "Xemu tarda en arrancar.\nSi ves 'insert disc': Machine → Load Disc → tu ISO.")
 
     # ---------- sala online ----------
+    def _fill_ip(self, var, fn, what):
+        try:
+            ip = fn()
+        except Exception:
+            ip = ""
+        if ip:
+            var.set(ip)
+            messagebox.showinfo("MK Port", f"{what}: {ip}\nYa quedó puesta para el link.")
+        else:
+            messagebox.showwarning("MK Port", f"No pude obtener {what}.\nRevisa tu internet.")
+
+    def _howto_online(self):
+        top = tk.Toplevel(self)
+        theme.root(top)
+        top.title("Jugar a distancia")
+        top.geometry("460x430")
+        top.resizable(False, False)
+        theme.section(top, "Cartagena ↔ Bogotá (u otras ciudades)").pack(anchor="w", padx=12, pady=(8, 0))
+        txt = (
+            "OPCIÓN 1 — ZeroTier (recomendada, 10 min, sin abrir puertos):\n"
+            "1. Los dos instalan ZeroTier (zerotier.com/download) y lo abren.\n"
+            "2. Uno crea una red gratis en my.zerotier.com y anota el Network ID.\n"
+            "3. En la red: autoriza los dos equipos (Auth) o ponla pública.\n"
+            "4. Los dos: Join Network con ese ID.\n"
+            "5. Cada uno ve su IP ZeroTier (empieza por 10.). Botón «Ver mis IPs».\n"
+            "6. El host pone SU IP 10.x en el campo y crea la sala.\n"
+            "7. Prueba: ping 10.x.x.x debe responder (<100 ms entre ciudades).\n\n"
+            "OPCIÓN 2 — IP pública (solo si tu router deja abrir puertos):\n"
+            "1. Host: abre UDP 34513 hacia tu PC + permite en Firewall Windows.\n"
+            "2. Botón «Ver mi IP pública» y crea la sala con esa IP.\n"
+            "3. Si tu operador usa CG-NAT no funcionará: vuelve a la opción 1.\n\n"
+            "En ambos casos tu amigo entra con tu link mkport://."
+        )
+        theme.label(top, text=txt, justify="left").pack(padx=12, pady=6)
+
     def _lobby_menu(self):
         if self.lobby_win and self.lobby_win.winfo_exists():
             self.lobby_win.focus()
@@ -407,6 +468,15 @@ class App(tk.Tk):
         theme.label(m, text="Tu IP pública o ZeroTier (para el link):").pack()
         ip_var = tk.StringVar(value=self.cfg.get("public_ip", ""))
         theme.entry(m, textvariable=ip_var).pack(fill="x", padx=20)
+        iprow = theme.frame(m)
+        iprow.pack(pady=2)
+        theme.button(iprow, text="Ver mi IP pública", kind="bronze",
+                     command=lambda: self._fill_ip(ip_var, public_ip, "IP pública")).pack(side="left", padx=2)
+        theme.button(iprow, text="Ver mis IPs", kind="bronze",
+                     command=lambda: self._fill_ip(ip_var, lambda: (local_ips() or [""])[0],
+                                                   "IP local (¿ZeroTier? la 10.x)")).pack(side="left", padx=2)
+        theme.button(m, text="¿Cómo conectarnos a distancia?", kind="ghost",
+                     command=self._howto_online).pack(pady=2)
         port = self.port_var.get() or "34513"
 
         def host():
