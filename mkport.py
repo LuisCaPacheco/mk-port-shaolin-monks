@@ -458,6 +458,7 @@ class App(tk.Tk):
 
         self.lobby_win = LobbyWindow(self, core, is_host, on_close=closed)
         if link:
+            core.events.put(("log", "Tu link (pásalo a tu amigo): " + link))
             top = tk.Toplevel(self.lobby_win)
             theme.root(top)
             top.title("Link de invitación")

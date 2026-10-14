@@ -70,6 +70,14 @@ class LobbyWindow(tk.Toplevel):
         self.bind("<Return>", lambda e: self._send_chat())
 
         self._ready = False
+        # Pintado inicial inmediato (no esperar al primer evento de red)
+        if is_host:
+            self.status.config(text="Sala abierta · esperando a tu amigo")
+            self._line("Sala abierta. Pásale tu link mkport:// a tu amigo.")
+            self._line("Nada se moverá hasta que él entre con el link.")
+        else:
+            self.status.config(text="Buscando la sala de tu amigo…")
+        self._paint_players(core.players)
         self._pump()
 
     # ---------- acciones ----------
@@ -96,16 +104,29 @@ class LobbyWindow(tk.Toplevel):
             self.on_close()
         self.destroy()
 
+    def _paint_players(self, players):
+        self.plist.delete(0, "end")
+        for p in players or []:
+            mark = "✓" if p.get("ready") else "·"
+            me = " (tú)" if p.get("me") else ""
+            self.plist.insert("end", f"{mark} {p.get('name')}{me}")
+
     # ---------- eventos de red -> pantalla ----------
     def _pump(self):
         try:
-            while True:
-                ev = self.core.events.get_nowait()
-                self._handle(ev)
-        except queue.Empty:
-            pass
-        if self.winfo_exists():
-            self.after(100, self._pump)
+            try:
+                while True:
+                    ev = self.core.events.get_nowait()
+                    try:
+                        self._handle(ev)
+                    except Exception as e:
+                        self._line(f"(error interno mostrándolo: {e})")
+            except queue.Empty:
+                pass
+        finally:
+            # La ventana jamás se queda muda: reprograma siempre
+            if self.winfo_exists():
+                self.after(100, self._pump)
 
     def _handle(self, ev):
         kind = ev[0]
@@ -116,11 +137,7 @@ class LobbyWindow(tk.Toplevel):
             self.status.config(text="En sala ✓" if ev[1] else "Desconectado")
             self.status.config(fg=theme.JADE if ev[1] else theme.BAD)
         elif kind == "players":
-            self.plist.delete(0, "end")
-            for p in ev[1]:
-                mark = "✓" if p.get("ready") else "·"
-                me = " (tú)" if p.get("me") else ""
-                self.plist.insert("end", f"{mark} {p.get('name')}{me}")
+            self._paint_players(ev[1])
         elif kind == "mission":
             self.mission_var.set(ev[1])
         elif kind == "chat":
