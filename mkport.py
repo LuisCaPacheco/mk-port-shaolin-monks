@@ -92,7 +92,7 @@ def autodetect(system: str = "ps2") -> dict:
 
 def load_config() -> dict:
     cfg = {"image": "", "emulator": "", "name": "Player", "port": "34513",
-           "public_ip": "", "system": "ps2", "zt_net": ""}
+           "public_ip": "", "system": "ps2", "zt_net": "", "match_url": ""}
     try:
         for line in CONFIG.read_text(encoding="utf-8").splitlines():
             s = line.strip()
@@ -121,7 +121,8 @@ def save_config(cfg: dict):
         f'name = "{cfg["name"]}"\n'
         f'port = "{cfg["port"]}"\n'
         f'public_ip = "{cfg["public_ip"]}"  # tu IP pública o ZeroTier para invitar\n'
-        f'zt_net = "{cfg.get("zt_net", "")}"  # Network ID ZeroTier (16 hex)\n',
+        f'zt_net = "{cfg.get("zt_net", "")}"  # Network ID ZeroTier (16 hex)\n'
+        f'match_url = "{cfg.get("match_url", "")}"  # Worker matchmaking (https://...workers.dev), vacío = sin códigos\n',
         encoding="utf-8")
 
 
@@ -247,7 +248,8 @@ class App(tk.Tk):
     def _persist(self):
         self.cfg.update(system=self.sys_var.get(), image=self.iso_var.get(), emulator=self.emu_var.get(),
                         name=self.name_var.get() or "Player", port=self.port_var.get() or "34513",
-                        public_ip=self.cfg.get("public_ip", ""), zt_net=self.cfg.get("zt_net", ""))
+                        public_ip=self.cfg.get("public_ip", ""), zt_net=self.cfg.get("zt_net", ""),
+                        match_url=self.cfg.get("match_url", ""))
         save_config(self.cfg)
 
     def _validate(self, silent=False):
@@ -462,7 +464,7 @@ class App(tk.Tk):
         m = tk.Toplevel(self)
         theme.root(m)
         m.title("Sala online")
-        m.geometry("380x320")
+        m.geometry("380x470")
         m.resizable(False, False)
         theme.section(m, "Sala online").pack(anchor="w", padx=12, pady=(8, 0))
         theme.label(m, text="Cada uno abre su emulador con su ISO.\nLa sala sincroniza listos, inicio y skip de intro.",
@@ -574,12 +576,85 @@ class App(tk.Tk):
 
         theme.button(m, text="Crear sala (soy host)", kind="blood", command=host).pack(fill="x", padx=40, pady=4)
         theme.button(m, text="Unirse con link", kind="jade", command=join).pack(fill="x", padx=40, pady=4)
+        theme.gold_rule(m)
+        theme.label(m, text="Con código (sin IPs, estilo Tenkaichi):").pack()
+        coderow = theme.frame(m)
+        coderow.pack(fill="x", padx=40, pady=2)
+        code_var = tk.StringVar()
+        theme.entry(coderow, textvariable=code_var, width=10).pack(side="left")
+        theme.button(coderow, text="Crear código", kind="bronze",
+                     command=lambda: self._host_code(m, code_var)).pack(side="left", padx=4)
+        theme.button(coderow, text="Unirse", kind="jade",
+                     command=lambda: self._join_code(m, code_var)).pack(side="left", padx=4)
 
-    def _open_lobby(self, core, is_host, link=""):
+    def _match_url_or_hint(self) -> str:
+        url = (self.cfg.get("match_url") or "").strip()
+        if not url:
+            messagebox.showwarning("MK Port", "Sin servidor de códigos.\nDespliega matchmaking/worker.js en Cloudflare (gratis) y pon su URL en match_url del config.toml.\nMientras tanto usa link o ZeroTier.")
+        return url
+
+    def _host_code(self, m, code_var):
+        import threading
+        import room as roomcl
+        url = self._match_url_or_hint()
+        if not url:
+            return
+        port = int(self.port_var.get() or "34513")
+        name = self.name_var.get() or "Player"
+        try:
+            addrs = roomcl.my_addrs(port)
+            if not addrs:
+                raise RuntimeError("no hallé tu dirección (¿STUN bloqueado y sin red local?).")
+            r = roomcl.host_room(url, name, addrs)
+        except Exception as e:
+            messagebox.showerror("MK Port", f"No pude crear el código: {e}")
+            return
+        code_var.set(r["code"])
+        copy_clipboard(r["code"])
+        core = LobbyCore(name)
+        try:
+            core.start_host(port)
+        except OSError as e:
+            messagebox.showerror("MK Port", f"No pude abrir el puerto {port}: {e}")
+            return
+        m.destroy()
+        self._open_lobby(core, True, room=(url, r["code"], r["key"]))
+        messagebox.showinfo("MK Port", f"Tu código: {r['code']}  (copiado, vale 10 min)\nPásalo a tu amigo. Te aviso cuando entre.")
+
+    def _join_code(self, m, code_var):
+        import room as roomcl
+        url = self._match_url_or_hint()
+        if not url:
+            return
+        code = code_var.get().strip()
+        if not code:
+            messagebox.showwarning("MK Port", "Escribe el código de 6 letras de tu amigo.")
+            return
+        port = int(self.port_var.get() or "34513")
+        name = self.name_var.get() or "Player"
+        try:
+            addrs = roomcl.my_addrs(port)
+            r = roomcl.join_room(url, code, name, addrs or [f"0.0.0.0:{port}"])
+        except Exception as e:
+            messagebox.showerror("MK Port", f"No pude entrar: {e}")
+            return
+        peer = [(a.rsplit(":", 1)[0], int(a.rsplit(":", 1)[1])) for a in r["peer"]["addrs"]]
+        core = LobbyCore(name)
+        core.start_join_addrs(peer)
+        m.destroy()
+        self._open_lobby(core, False, room=(url, code, r["key"]))
+
+    def _open_lobby(self, core, is_host, link="", room=None):
         from lobby_ui import LobbyWindow
 
         def closed():
             self.lobby_win = None
+            if room:
+                try:
+                    import room as roomcl
+                    roomcl.leave_room(room[0], room[1], room[2])
+                except Exception:
+                    pass
 
         self.lobby_win = LobbyWindow(self, core, is_host, on_close=closed)
         if link:

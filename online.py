@@ -36,12 +36,14 @@ class LobbyCore:
         self._sock: socket.socket | None = None
         self._thread: threading.Thread | None = None
         self._peers: dict = {}          # host: addr -> {name, ready, last}
-        self._host_addr = None          # join: (host, port)
+        self._host_addr = None          # join: (host, port) fijado al conectar
+        self._candidates: list = []     # join: direcciones a taladrar (hole punching)
         self._ready = False
         self._last_state = 0.0
         self._ping_t = 0
         self._ping_sent: dict[int, float] = {}
         self._rtts: list[float] = []
+        self._last_host = _now()
 
     # ---------- ciclo de vida ----------
     def start_host(self, port: int):
@@ -54,12 +56,18 @@ class LobbyCore:
         self._refresh_players()
 
     def start_join(self, host: str, port: int):
+        self.start_join_addrs([(host, int(port))])
+
+    def start_join_addrs(self, addrs: list):
+        """Únete probando varias direcciones (las del código de sala):
+        taladra UDP a todas hasta que una responda (hole punching)."""
         self.is_host = False
-        self._host_addr = (host, port)
+        self._candidates = [(h, int(p)) for h, p in addrs if h and p]
+        self._host_addr = self._candidates[0] if self._candidates else None
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.settimeout(0.2)
         self._begin()
-        self._push(("log", f"Conectando a {host}:{port} ..."))
+        self._push(("log", f"Taladrando {len(self._candidates)} dirección(es)…"))
 
     def _begin(self):
         self.running = True
@@ -174,13 +182,18 @@ class LobbyCore:
             else:
                 if not self.connected and now >= hello_every:
                     hello_every = now + 1.0
-                    self._send({"t": "HELLO", "v": NET_VERSION, "name": self.name}, self._host_addr)
+                    for cand in self._candidates or ([self._host_addr] if self._host_addr else []):
+                        self._send({"t": "HELLO", "v": NET_VERSION, "name": self.name}, cand)
                 if self.connected:
                     if now - self._ping_t >= 2.0:
                         self._ping_t = now
                         t = int(now * 1000) & 0xFFFFFFFF
                         self._ping_sent[t] = now
                         self._send({"t": "PING", "v": NET_VERSION, "t2": t}, self._host_addr)
+                    if now - self._last_host > 8.0:  # host caído: vuelve a taladrar
+                        self.connected = False
+                        self._push(("conn", False))
+                        self._push(("log", "Se perdió al host: reintentando…"))
 
     def _on_msg(self, msg: dict, addr):
         t = msg.get("t")
@@ -222,11 +235,14 @@ class LobbyCore:
                     self._refresh_players()
                     self._broadcast_state()
         else:
-            if addr != self._host_addr:
+            if addr != self._host_addr and addr not in (self._candidates or []):
                 return
+            self._last_host = _now()
             if t == "WELCOME":
                 if not self.connected:
                     self.connected = True
+                    self._host_addr = addr  # fija la que respondió
+                    self._candidates = [addr]
                     self._push(("conn", True))
                     self._push(("log", "Conectado a la sala. Márcate LISTO."))
                 self.mission = str(msg.get("mission", ""))
