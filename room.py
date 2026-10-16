@@ -34,7 +34,8 @@ def _post(url: str, payload: dict, timeout_s: int = 10) -> dict:
         raise RuntimeError({"version": "versiones distintas: actualiza el port",
                             "no-room": "código inexistente o vencido (10 min)",
                             "full": "sala llena", "limit": "límite antiabuso, espera",
-                            "open": "tienes 4 salas abiertas", "addrs": "sin direcciones"}.get(
+                            "open": "tienes 4 salas abiertas", "addrs": "sin direcciones",
+                            "busy": "servidor ocupado, reintenta"}.get(
             out["error"], out["error"]))
     return out
 

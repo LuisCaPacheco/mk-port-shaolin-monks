@@ -63,10 +63,16 @@ export default {
       if (open && open.c >= ROOM_OPEN_MAX) return err("open");
       const addrs = cleanAddrs(body.addrs);
       if (!addrs.length) return err("addrs");
-      const c = code6(crypto), hk = secret(crypto);
-      await db.prepare(
-        "INSERT INTO rooms(code,made,version,ip,host_key,host_name,host_addrs) VALUES(?1,?2,?3,?4,?5,?6,?7)")
-        .bind(c, now(), NET_VERSION, ip, hk, String(body.name || "?").slice(0, 16), JSON.stringify(addrs)).run();
+      let c = "", hk = "";
+      for (let i = 0; i < 3; i++) {  // el código casi nunca choca; si choca, otro
+        c = code6(crypto); hk = secret(crypto);
+        try {
+          await db.prepare(
+            "INSERT INTO rooms(code,made,version,ip,host_key,host_name,host_addrs) VALUES(?1,?2,?3,?4,?5,?6,?7)")
+            .bind(c, now(), NET_VERSION, ip, hk, String(body.name || "?").slice(0, 16), JSON.stringify(addrs)).run();
+          break;
+        } catch { c = ""; if (i === 2) return err("busy"); }
+      }
       await markUsed(db, ip, "room");
       return json({ code: c, key: hk, you: ip });
     }
