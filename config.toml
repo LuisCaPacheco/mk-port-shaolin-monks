@@ -6,3 +6,4 @@ name = "Loues"
 port = "34513"
 public_ip = ""  # tu IP pública o ZeroTier para invitar
 zt_net = ""  # Network ID ZeroTier (16 hex)
+match_url = "https://lucky-violet-9cba.luiscar29408007.workers.dev"
